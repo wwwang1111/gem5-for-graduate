@@ -66,6 +66,7 @@
 #include "params/BaseO3CPU.hh"
 #include "sim/faults.hh"
 #include "sim/full_system.hh"
+#include "sim/sim_exit.hh"
 
 namespace gem5
 {
@@ -1229,12 +1230,20 @@ Commit::commitHead(const DynInstPtr &head_inst, unsigned inst_num)
             head_inst->traceData = NULL;
         }
 
+        if (head_inst->pcState().instAddr() >= 0x80000000 && head_inst->pcState().instAddr() < 0x90000000)
+            exitSimLoop("reached instruction: unknown");
+
         // Generate trap squash event.
         generateTrapEvent(tid, inst_fault);
         return false;
     }
 
     updateComInstStats(head_inst);
+
+    if (head_inst->staticInst->disassemble(head_inst->pcState().instAddr()) 
+            == "jal zero, 0") {
+        exitSimLoop("reached instruction: jal zero, 0");
+    }
 
     DPRINTF(Commit,
             "[tid:%i] [sn:%llu] Committing instruction with PC %s\n",
@@ -1341,6 +1350,7 @@ Commit::updateComInstStats(const DynInstPtr &inst)
     if (!inst->isMicroop() || inst->isLastMicroop()) {
         cpu->commitStats[tid]->numInsts++;
         cpu->baseStats.numInsts++;
+        cpu->curCommitInsts++;
     }
     cpu->commitStats[tid]->numOps++;
 

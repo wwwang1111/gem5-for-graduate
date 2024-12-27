@@ -107,6 +107,9 @@ class CPU : public BaseCPU
         SwitchedOut
     };
 
+    //current commitinsts
+    int number;
+
     BaseMMU *mmu;
     using LSQRequest = LSQ::LSQRequest;
 
@@ -475,6 +478,13 @@ class CPU : public BaseCPU
 
     /** The IEW stage's instruction queue. */
     TimeBuffer<IEWStruct> iewQueue;
+
+    /** current and last CommitInsts. */
+    uint64_t curCommitInsts = 0;
+
+    uint64_t lastCommitInsts = 0;
+
+    int lowIPCCount = 0;
 
   private:
     /** The activity recorder; used to tell if the CPU has any

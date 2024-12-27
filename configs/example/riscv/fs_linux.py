@@ -176,7 +176,7 @@ mdesc = SysConfig(
     os_type=args.os_type,
 )
 system.mem_mode = mem_mode
-system.mem_ranges = [AddrRange(start=0x80000000, size=mdesc.mem())]
+system.mem_ranges = [AddrRange(start=0x70000000, size=mdesc.mem())]
 
 workload_args = dict()
 if args.semihosting:

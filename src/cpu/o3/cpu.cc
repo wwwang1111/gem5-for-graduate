@@ -411,6 +411,33 @@ CPU::tick()
         }
     }
 
+    if (curCycle() % 10000 == 0 && curCycle() > 0) {
+        cprintf("curCycle(): %llu\n", curCycle());
+        
+        cprintf("Number of current committed instructions: %llu\n", curCommitInsts);
+        double cur_ipc = (curCommitInsts - lastCommitInsts) * 1.0 / 10000;
+        if (cur_ipc < 0.0001) {
+            lowIPCCount++;
+        } else {
+            lowIPCCount = 0;
+        }
+        if (lowIPCCount >= 10) {
+            panic("IPC < 0.0001 sustain. An error existing in your CPU. Please check it.\n");
+        }
+        if (curCycle()) {
+            cprintf("Current IPC: %f\n", cur_ipc);
+            cprintf("Total IPC: %f\n", (double)curCommitInsts / (double)curCycle());
+        } else {
+            cprintf("Current IPC: 0.0\n");
+            cprintf("Total IPC: 0.0\n");
+        }
+        number = curCommitInsts;
+        lastCommitInsts = curCommitInsts;
+        cprintf("\n");
+        cprintf("\n");
+        cprintf("\n");
+    }
+
     if (!FullSystem)
         updateThreadPriority();
 
