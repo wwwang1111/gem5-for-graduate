@@ -365,6 +365,10 @@ class Packet : public Printable, public Extensible<Packet>
 
     Flags flags;
 
+    bool sendRightAway = false;
+
+    bool retriedPkt = false;
+
   public:
     typedef MemCmd::Command Command;
 
@@ -840,6 +844,31 @@ class Packet : public Printable, public Extensible<Packet>
     }
 
     /**
+     * Setting and Getting the flag of whether the packet
+     * needs to be sent right away.
+    */
+
+    bool isSendRightAway()
+    {
+        return sendRightAway;
+    }
+
+    void setSendRightAway()
+    {
+        sendRightAway = true;
+    }
+
+    bool isRetriedPkt()
+    {
+        return retriedPkt;
+    }
+
+    void setRetriedPkt()
+    {
+        retriedPkt = true;
+    }
+
+    /**
      * Accessor function to atomic op.
      */
     AtomicOpFunctor *getAtomicOp() const { return req->getAtomicOpFunctor(); }
@@ -1302,6 +1331,18 @@ class Packet : public Printable, public Extensible<Packet>
             // one to the other, e.g. a forwarded response to a response
             std::memcpy(getPtr<uint8_t>(), p, getSize());
         }
+    }
+
+    void
+    setData(const uint8_t* p, unsigned src_index, unsigned dest_index, unsigned copySize)
+    {
+        std::memcpy(getPtr<uint8_t>() + dest_index, p + src_index, copySize);
+    }
+
+    void
+    getData(uint8_t* p)
+    {
+        std::memcpy(p, getPtr<uint8_t>(), getSize());
     }
 
     /**

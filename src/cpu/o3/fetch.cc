@@ -124,12 +124,15 @@ Fetch::Fetch(CPU *_cpu, const BaseO3CPUParams &params)
         macroop[i] = nullptr;
         delayedCommit[i] = false;
         memReq[i] = nullptr;
+        anotherMemReq[i] = nullptr;
         stalls[i] = {false, false};
         fetchBuffer[i] = NULL;
         fetchBufferPC[i] = 0;
         fetchBufferValid[i] = false;
         lastIcacheStall[i] = 0;
         issuePipelinedIfetch[i] = false;
+        firstPkt[i] = nullptr;
+        secondPkt[i] = nullptr;
     }
 
     branchPred = params.branchPred;
@@ -143,6 +146,9 @@ Fetch::Fetch(CPU *_cpu, const BaseO3CPUParams &params)
 
     // Get the size of an instruction.
     instSize = decoder[0]->moreBytesSize();
+
+    firstDataBuf = new uint8_t[fetchBufferSize];
+    secondDataBuf = new uint8_t[fetchBufferSize];
 }
 
 std::string Fetch::name() const { return cpu->name() + ".fetch"; }
@@ -279,6 +285,7 @@ Fetch::clearStates(ThreadID tid)
     macroop[tid] = NULL;
     delayedCommit[tid] = false;
     memReq[tid] = NULL;
+    anotherMemReq[tid] = NULL;
     stalls[tid].decode = false;
     stalls[tid].drain = false;
     fetchBufferPC[tid] = 0;
@@ -307,6 +314,7 @@ Fetch::resetStage()
 
         delayedCommit[tid] = false;
         memReq[tid] = NULL;
+        anotherMemReq[tid] = NULL;
 
         stalls[tid].decode = false;
         stalls[tid].drain = false;
@@ -328,6 +336,72 @@ Fetch::processCacheCompletion(PacketPtr pkt)
 {
     ThreadID tid = cpu->contextToThread(pkt->req->contextId());
 
+    if (pkt->req->isMisalignedFetch() && (pkt->req == memReq[tid] || pkt->req == anotherMemReq[tid])) {
+        DPRINTF(Fetch, "[tid:%i] Misaligned pkt receive.\n", tid);
+        Addr anotherPC = 0;
+        unsigned anotherSize = 0;
+        if (pkt->req->getReqNum() == 1) {
+            firstPkt[tid] = pkt;
+            anotherPC = pkt->req->getVaddr() + 64 - pkt->req->getVaddr() % 64;
+            anotherSize = fetchBufferSize - pkt->getSize();
+        } else if (pkt->req->getReqNum() == 2) {
+            secondPkt[tid] = pkt;
+            anotherPC = pkt->req->getVaddr() - 64 + pkt->getSize();
+            anotherSize = fetchBufferSize - pkt->getSize();
+        }
+
+        if (firstPkt[tid] == nullptr || secondPkt[tid] == nullptr) {
+            DPRINTF(Fetch, "[tid:%i] Waiting for %s pkt.\n", tid,
+                    firstPkt[tid] == nullptr ? "first" : "second");
+            if (pkt->isRetriedPkt()) {
+                DPRINTF(Fetch, "[tid:%i] Retried pkt.\n", tid);
+                DPRINTF(Fetch, "[tid:%i] send next pkt, addr: %#x, size: %d\n",
+                        tid, pkt->req->getVaddr() + 64 - pkt->req->getVaddr() % 64, 
+                        fetchBufferSize - pkt->getSize());
+
+                RequestPtr mem_req = std::make_shared<Request>(
+                                    anotherPC, 
+                                    anotherSize,
+                                    Request::INST_FETCH, cpu->instRequestorId(), pkt->req->getPC(),
+                                    cpu->thread[tid]->contextId());
+
+                mem_req->taskId(cpu->taskId());
+
+                mem_req->setMisalignedFetch();
+
+                if (pkt->req->getReqNum() == 1) {
+                    mem_req->setReqNum(2);
+                } else if (pkt->req->getReqNum() == 2) {
+                    mem_req->setReqNum(1);
+                }
+
+                anotherMemReq[tid] = memReq[tid];
+
+                memReq[tid] = mem_req;
+
+                fetchStatus[tid] = ItlbWait;
+                FetchTranslation *trans = new FetchTranslation(this);
+                cpu->mmu->translateTiming(mem_req, cpu->thread[tid]->getTC(),
+                                          trans, BaseMMU::Execute);
+            }
+            return;
+        } else {
+            DPRINTF(Fetch, "[tid:%i] Received another pkt addr=%#lx, mem_req addr=%#lx.\n", tid,
+                    pkt->getAddr(), pkt->req->getVaddr());
+
+            // Copy two packets data into second packet
+            firstPkt[tid]->getData(firstDataBuf);
+            secondPkt[tid]->getData(secondDataBuf);
+            if (memReq[tid]->getReqNum() == 2) {
+                pkt = secondPkt[tid];
+            } else {
+                pkt = firstPkt[tid];
+            }
+            pkt->setData(firstDataBuf, 0, 0, firstPkt[tid]->getSize());
+            pkt->setData(secondDataBuf, 0, firstPkt[tid]->getSize(), secondPkt[tid]->getSize());
+        }
+    }
+
     DPRINTF(Fetch, "[tid:%i] Waking up from cache miss.\n", tid);
     assert(!cpu->switchedOut());
 
@@ -335,6 +409,7 @@ Fetch::processCacheCompletion(PacketPtr pkt)
     // to return.
     if (fetchStatus[tid] != IcacheWaitResponse ||
         pkt->req != memReq[tid]) {
+        DPRINTF(Fetch, "delete pkt %#lx\n", pkt->getAddr());
         ++fetchStats.icacheSquashes;
         delete pkt;
         return;
@@ -362,8 +437,16 @@ Fetch::processCacheCompletion(PacketPtr pkt)
     pkt->req->setAccessLatency();
     cpu->ppInstAccessComplete->notify(pkt);
     // Reset the mem req to NULL.
-    delete pkt;
+    if (!pkt->req->isMisalignedFetch()) {
+        delete pkt;
+    } else {
+        delete firstPkt[tid];
+        delete secondPkt[tid];
+        firstPkt[tid] = nullptr;
+        secondPkt[tid] = nullptr;
+    }
     memReq[tid] = NULL;
+    anotherMemReq[tid] = NULL;
 }
 
 void
@@ -386,6 +469,7 @@ Fetch::drainSanityCheck() const
 
     for (ThreadID i = 0; i < numThreads; ++i) {
         assert(!memReq[i]);
+        assert(!anotherMemReq[i]);
         assert(fetchStatus[i] == Idle || stalls[i].drain);
     }
 
@@ -550,22 +634,74 @@ Fetch::fetchCacheLine(Addr vaddr, ThreadID tid, Addr pc)
     }
 
     // Align the fetch address to the start of a fetch buffer segment.
-    Addr fetchBufferBlockPC = fetchBufferAlignPC(vaddr);
+    Addr fetchBufferBlockPC = fetchBufferAlignPC_half(vaddr);
+    unsigned fetchSize = fetchBufferSize;
 
     DPRINTF(Fetch, "[tid:%i] Fetching cache line %#x for addr %#x\n",
             tid, fetchBufferBlockPC, vaddr);
 
-    // Setup the memReq to do a read of the first instruction's address.
+    if (fetchBufferBlockPC % 64) {
+        fetchMisaligned[tid] = true;
+
+        if (firstPkt[tid] != nullptr) {
+            delete firstPkt[tid];
+            firstPkt[tid] = nullptr;
+        }
+        if (secondPkt[tid] != nullptr) {
+            delete secondPkt[tid];
+            secondPkt[tid] = nullptr;
+        }
+
+        fetchSize >>= 1;
+
+        RequestPtr mem_req = std::make_shared<Request>(
+            fetchBufferBlockPC, fetchSize,
+            Request::INST_FETCH, cpu->instRequestorId(), pc,
+            cpu->thread[tid]->contextId());
+
+        mem_req->taskId(cpu->taskId());
+
+        memReq[tid] = mem_req;
+        
+        anotherMemReq[tid] = mem_req;
+
+        mem_req->setMisalignedFetch();
+
+        DPRINTF(Fetch, "[tid:%i] Fetching first cache line %#x for addr %#x, pc=%#lx\n",
+                tid, fetchBufferBlockPC, vaddr, pc);
+
+        fetchStatus[tid] = ItlbWait;
+        FetchTranslation *trans = new FetchTranslation(this);
+        cpu->mmu->translateTiming(mem_req, cpu->thread[tid]->getTC(),
+                                trans, BaseMMU::Execute);
+
+        fetchBufferBlockPC += 32;
+    } else {
+        fetchMisaligned[tid] = false;
+    }
+
+    if (fetchMisaligned[tid] && fetchStatus[tid] == IcacheWaitRetry) {
+        return true;
+    }
+
+    // Setup the memReq to do a read of the first/second instruction's address.
     // Set the appropriate read size and flags as well.
     // Build request here.
     RequestPtr mem_req = std::make_shared<Request>(
-        fetchBufferBlockPC, fetchBufferSize,
+        fetchBufferBlockPC, fetchSize,
         Request::INST_FETCH, cpu->instRequestorId(), pc,
         cpu->thread[tid]->contextId());
 
     mem_req->taskId(cpu->taskId());
 
     memReq[tid] = mem_req;
+
+    if (fetchMisaligned[tid]) {
+        DPRINTF(Fetch, "[tid:%i] Fetching second cache line %#x for addr %#x, pc=%#lx\n",
+                tid, fetchBufferBlockPC, vaddr, pc);
+        mem_req->setMisalignedFetch();
+        mem_req->setReqNum(2);
+    }
 
     // Initiate translation of the icache block
     fetchStatus[tid] = ItlbWait;
@@ -579,17 +715,32 @@ void
 Fetch::finishTranslation(const Fault &fault, const RequestPtr &mem_req)
 {
     ThreadID tid = cpu->contextToThread(mem_req->contextId());
-    Addr fetchBufferBlockPC = mem_req->getVaddr();
+    Addr fetchMisalignedPC = mem_req->getVaddr();
+    if (mem_req->getReqNum() == 2) {
+        fetchMisalignedPC = mem_req->getVaddr() - 64 + mem_req->getSize();
+    }
+    Addr fetchPC = mem_req->isMisalignedFetch() ? fetchMisalignedPC : mem_req->getVaddr();
 
     assert(!cpu->switchedOut());
 
     // Wake up CPU if it was idle
     cpu->wakeCPU();
 
-    if (fetchStatus[tid] != ItlbWait || mem_req != memReq[tid] ||
-        mem_req->getVaddr() != memReq[tid]->getVaddr()) {
+    if (memReq[tid] != NULL) {
+        DPRINTF(Fetch, "memReq.addr=%#lx\n", memReq[tid]->getVaddr());
+    }
+
+    if (anotherMemReq[tid] != NULL) {
+        DPRINTF(Fetch, "anotherMemReq.addr=%#lx\n", anotherMemReq[tid]->getVaddr());
+    }
+
+    if (!(fetchStatus[tid] == IcacheWaitResponse && mem_req->isMisalignedFetch() && (mem_req == memReq[tid] || mem_req == anotherMemReq[tid])) && 
+        (fetchStatus[tid] != ItlbWait || ((mem_req != anotherMemReq[tid] || mem_req->getVaddr() != anotherMemReq[tid]->getVaddr()) && 
+         (mem_req != memReq[tid] || mem_req->getVaddr() != memReq[tid]->getVaddr())))) {
         DPRINTF(Fetch, "[tid:%i] Ignoring itlb completed after squash\n",
                 tid);
+        DPRINTF(Fetch, "[tid:%i] Ignoring req addr=%#lx\n",
+                tid, mem_req->getVaddr());
         ++fetchStats.tlbSquashes;
         return;
     }
@@ -605,6 +756,7 @@ Fetch::finishTranslation(const Fault &fault, const RequestPtr &mem_req)
                     mem_req->getPaddr());
             fetchStatus[tid] = NoGoodAddr;
             memReq[tid] = NULL;
+            anotherMemReq[tid] = NULL;
             return;
         }
 
@@ -612,7 +764,12 @@ Fetch::finishTranslation(const Fault &fault, const RequestPtr &mem_req)
         PacketPtr data_pkt = new Packet(mem_req, MemCmd::ReadReq);
         data_pkt->dataDynamic(new uint8_t[fetchBufferSize]);
 
-        fetchBufferPC[tid] = fetchBufferBlockPC;
+        if (mem_req->isMisalignedFetch()) data_pkt->setSendRightAway();
+
+        DPRINTF(Fetch, "[tid:%i] Fetching data for addr %#x, pc=%#lx\n",
+            tid, mem_req->getVaddr(), fetchPC);
+
+        fetchBufferPC[tid] = fetchPC;
         fetchBufferValid[tid] = false;
         DPRINTF(Fetch, "Fetch: Doing instruction read.\n");
 
@@ -625,6 +782,12 @@ Fetch::finishTranslation(const Fault &fault, const RequestPtr &mem_req)
             DPRINTF(Fetch, "[tid:%i] Out of MSHRs!\n", tid);
 
             fetchStatus[tid] = IcacheWaitRetry;
+
+            data_pkt->setRetriedPkt();
+
+            DPRINTF(Fetch, "[tid:%i] mem_req.addr=%#lx needs retry.\n", tid,
+                    mem_req->getVaddr());
+
             retryPkt = data_pkt;
             retryTid = tid;
             cacheBlocked = true;
@@ -639,9 +802,17 @@ Fetch::finishTranslation(const Fault &fault, const RequestPtr &mem_req)
             ppFetchRequestSent->notify(mem_req);
         }
     } else {
+        DPRINTF(Fetch, "fault, mem_req.addr=%#lx\n", mem_req->getVaddr());
         // Don't send an instruction to decode if we can't handle it.
         if (!(numInst < fetchWidth) ||
                 !(fetchQueue[tid].size() < fetchQueueSize)) {
+                    
+            if (finishTranslationEvent.scheduled() && finishTranslationEvent.getReq() != mem_req) {
+                DPRINTF(Fetch, "fault, mem_req.addr=%#lx, finishTranslationEvent.getReq().addr=%#lx, mem_req.addr=%#lx\n",
+                        mem_req->getVaddr(),
+                        finishTranslationEvent.getReq()->getVaddr(), mem_req->getVaddr());
+                return;
+            }
             assert(!finishTranslationEvent.scheduled());
             finishTranslationEvent.setFault(fault);
             finishTranslationEvent.setReq(mem_req);
@@ -654,6 +825,7 @@ Fetch::finishTranslation(const Fault &fault, const RequestPtr &mem_req)
                 tid, mem_req->getVaddr(), memReq[tid]->getVaddr());
         // Translation faulted, icache request won't be sent.
         memReq[tid] = NULL;
+        anotherMemReq[tid] = NULL;
 
         // Send the fault to commit.  This thread will not do anything
         // until commit handles the fault.  The only other way it can
@@ -668,6 +840,9 @@ Fetch::finishTranslation(const Fault &fault, const RequestPtr &mem_req)
 
         instruction->setPredTarg(fetch_pc);
         instruction->fault = fault;
+        std::unique_ptr<PCStateBase> next_pc(fetch_pc.clone());
+        instruction->staticInst->advancePC(*next_pc);
+        set(instruction->predPC, next_pc);
         wroteToTimeBuffer = true;
 
         DPRINTF(Activity, "Activity this cycle.\n");
@@ -703,10 +878,12 @@ Fetch::doSquash(const PCStateBase &new_pc, const DynInstPtr squashInst,
         DPRINTF(Fetch, "[tid:%i] Squashing outstanding Icache miss.\n",
                 tid);
         memReq[tid] = NULL;
+        anotherMemReq[tid] = NULL;
     } else if (fetchStatus[tid] == ItlbWait) {
         DPRINTF(Fetch, "[tid:%i] Squashing outstanding ITLB miss.\n",
                 tid);
         memReq[tid] = NULL;
+        anotherMemReq[tid] = NULL;
     }
 
     // Get rid of the retrying packet if it was from this thread.
@@ -1109,15 +1286,13 @@ Fetch::fetch(bool &status_change)
         fetchStatus[tid] = Running;
         status_change = true;
     } else if (fetchStatus[tid] == Running) {
-        // Align the fetch PC so its at the start of a fetch buffer segment.
-        Addr fetchBufferBlockPC = fetchBufferAlignPC(fetchAddr);
 
         // If buffer is no longer valid or fetchAddr has moved to point
         // to the next cache block, AND we have no remaining ucode
         // from a macro-op, then start fetch from icache.
         if (!(fetchBufferValid[tid] &&
-                    fetchBufferBlockPC == fetchBufferPC[tid]) && !inRom &&
-                !macroop[tid]) {
+            fetchBufferPC[tid] + fetchBufferSize > fetchAddr && fetchBufferPC[tid] <= fetchAddr) && 
+            !inRom && !macroop[tid]) {
             DPRINTF(Fetch, "[tid:%i] Attempting to translate and read "
                     "instruction, starting at PC %s.\n", tid, this_pc);
 
@@ -1192,8 +1367,7 @@ Fetch::fetch(bool &status_change)
         if (needMem) {
             // If buffer is no longer valid or fetchAddr has moved to point
             // to the next cache block then start fetch from icache.
-            if (!fetchBufferValid[tid] ||
-                fetchBufferBlockPC != fetchBufferPC[tid])
+            if (!fetchBufferValid[tid])
                 break;
 
             if (blkOffset >= numInsts) {
@@ -1302,13 +1476,13 @@ Fetch::fetch(bool &status_change)
 
     if (predictedBranch) {
         DPRINTF(Fetch, "[tid:%i] Done fetching, predicted branch "
-                "instruction encountered.\n", tid);
+                " instruction encountered.\n", tid);
     } else if (numInst >= fetchWidth) {
         DPRINTF(Fetch, "[tid:%i] Done fetching, reached fetch bandwidth "
-                "for this cycle.\n", tid);
+                " for this cycle.\n", tid);
     } else if (blkOffset >= fetchBufferSize) {
         DPRINTF(Fetch, "[tid:%i] Done fetching, reached the end of the"
-                "fetch buffer.\n", tid);
+                " fetch buffer.\n", tid);
     }
 
     macroop[tid] = curMacroop;
@@ -1321,8 +1495,8 @@ Fetch::fetch(bool &status_change)
     // pipeline a fetch if we're crossing a fetch buffer boundary and not in
     // a state that would preclude fetching
     fetchAddr = (this_pc.instAddr() + pcOffset) & pc_mask;
-    Addr fetchBufferBlockPC = fetchBufferAlignPC(fetchAddr);
-    issuePipelinedIfetch[tid] = fetchBufferBlockPC != fetchBufferPC[tid] &&
+    Addr fetchBufferBlockPC = fetchBufferAlignPC_half(fetchAddr);
+    issuePipelinedIfetch[tid] = (fetchBufferBlockPC != fetchBufferPC[tid] && fetchBufferBlockPC != fetchBufferPC[tid] + 32) &&
         fetchStatus[tid] != IcacheWaitResponse &&
         fetchStatus[tid] != ItlbWait &&
         fetchStatus[tid] != IcacheWaitRetry &&
@@ -1519,11 +1693,8 @@ Fetch::pipelineIcacheAccesses(ThreadID tid)
     Addr pcOffset = fetchOffset[tid];
     Addr fetchAddr = (this_pc.instAddr() + pcOffset) & decoder[tid]->pcMask();
 
-    // Align the fetch PC so its at the start of a fetch buffer segment.
-    Addr fetchBufferBlockPC = fetchBufferAlignPC(fetchAddr);
-
     // Unless buffer already got the block, fetch it from icache.
-    if (!(fetchBufferValid[tid] && fetchBufferBlockPC == fetchBufferPC[tid])) {
+    if (!(fetchBufferValid[tid] && (fetchBufferPC[tid] + fetchBufferSize > fetchAddr && fetchBufferPC[tid] <= fetchAddr))) {
         DPRINTF(Fetch, "[tid:%i] Issuing a pipelined I-cache access, "
                 "starting at PC %s.\n", tid, this_pc);
 

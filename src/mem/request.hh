@@ -470,6 +470,11 @@ class Request : public Extensible<Request>
     /** The cause for HTM transaction abort */
     HtmFailureFaultCause _htmAbortCause = HtmFailureFaultCause::INVALID;
 
+    /** misalignde fetch */
+    bool misalignedFetch = false;
+
+    int reqNum = 1;
+
   public:
 
     /**
@@ -537,6 +542,26 @@ class Request : public Extensible<Request>
 
         assert(mgmt_req->isMemMgmt());
         return mgmt_req;
+    }
+
+    bool isMisalignedFetch()
+    {
+        return misalignedFetch;
+    }
+
+    void setMisalignedFetch()
+    {
+        misalignedFetch = true;
+    }
+
+    int getReqNum()
+    {
+        return reqNum;
+    }
+
+    void setReqNum(int num)
+    {
+        reqNum = num;
     }
 
     /**

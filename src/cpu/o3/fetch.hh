@@ -139,6 +139,7 @@ class Fetch
 
         void setFault(Fault _fault) { fault = _fault; }
         void setReq(const RequestPtr &_req) { req = _req; }
+        RequestPtr getReq() { return req; }
 
         /** Process the delayed finish translation */
         void
@@ -354,6 +355,11 @@ class Fetch
         return (addr & ~(fetchBufferMask));
     }
 
+    Addr fetchBufferAlignPC_half(Addr addr)
+    {
+        return (addr & ~(((fetchBufferMask + 1) >> 1) - 1));
+    }
+
     /** The decoder. */
     InstDecoder *decoder[MaxThreads];
 
@@ -424,6 +430,13 @@ class Fetch
     /** Memory request used to access cache. */
     RequestPtr memReq[MaxThreads];
 
+    /** misaligned Memory request used to access cache. */
+    RequestPtr anotherMemReq[MaxThreads];
+
+    PacketPtr firstPkt[MaxThreads];
+
+    PacketPtr secondPkt[MaxThreads];
+
     /** Variable that tracks if fetch has written to the time buffer this
      * cycle. Used to tell CPU if there is activity this cycle.
      */
@@ -485,6 +498,9 @@ class Fetch
 
     /** The PC of the first instruction loaded into the fetch buffer. */
     Addr fetchBufferPC[MaxThreads];
+
+    /** Indicating whether the fetch request is mis-aligned*/
+    bool fetchMisaligned[MaxThreads];
 
     /** The size of the fetch queue in micro-ops */
     unsigned fetchQueueSize;
@@ -576,6 +592,10 @@ class Fetch
         /** Rate of how often fetch was idle. */
         statistics::Formula idleRate;
     } fetchStats;
+
+  private:
+  uint8_t* firstDataBuf;
+  uint8_t* secondDataBuf;
 };
 
 } // namespace o3
