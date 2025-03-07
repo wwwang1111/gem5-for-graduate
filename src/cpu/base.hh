@@ -643,6 +643,81 @@ class BaseCPU : public ClockedObject
         statistics::Formula ipc;
         statistics::Scalar numWorkItemsStarted;
         statistics::Scalar numWorkItemsCompleted;
+
+        statistics::Scalar numInsts1_100loop; 
+        statistics::Scalar numInsts101_200loop; 
+        statistics::Scalar numInsts201_300loop; 
+        statistics::Scalar numInsts301_400loop; 
+        statistics::Scalar numInsts401_500loop;
+        statistics::Scalar numInsts501_600loop; 
+        statistics::Scalar numInsts601_700loop; 
+        statistics::Scalar numInsts701_800loop; 
+        statistics::Scalar numInsts801_900loop; 
+        statistics::Scalar numInsts901_1000loop; 
+        statistics::Scalar numInsts1001_1100loop; 
+        statistics::Scalar numInsts1101_1200loop; 
+        statistics::Scalar numInsts1201_1300loop; 
+        statistics::Scalar numInsts1301_1400loop; 
+        statistics::Scalar numInsts1401_1500loop; 
+        statistics::Scalar numInsts1501_1600loop; 
+        statistics::Scalar numInsts1601_1700loop; 
+        statistics::Scalar numInsts1701_1800loop; 
+        statistics::Scalar numInsts1801_1900loop; 
+        statistics::Scalar numInsts1901_2000loop; 
+        statistics::Scalar numInsts1_500loop;
+        statistics::Scalar numInsts501_1000loop; 
+        statistics::Scalar numInsts1001_1500loop; 
+        statistics::Scalar numInsts1501_2000loop; 
+
+        statistics::Scalar numCycles1_100loop; 
+        statistics::Scalar numCycles101_200loop; 
+        statistics::Scalar numCycles201_300loop; 
+        statistics::Scalar numCycles301_400loop; 
+        statistics::Scalar numCycles401_500loop;
+        statistics::Scalar numCycles501_600loop; 
+        statistics::Scalar numCycles601_700loop; 
+        statistics::Scalar numCycles701_800loop; 
+        statistics::Scalar numCycles801_900loop; 
+        statistics::Scalar numCycles901_1000loop; 
+        statistics::Scalar numCycles1001_1100loop; 
+        statistics::Scalar numCycles1101_1200loop; 
+        statistics::Scalar numCycles1201_1300loop; 
+        statistics::Scalar numCycles1301_1400loop; 
+        statistics::Scalar numCycles1401_1500loop; 
+        statistics::Scalar numCycles1501_1600loop; 
+        statistics::Scalar numCycles1601_1700loop; 
+        statistics::Scalar numCycles1701_1800loop; 
+        statistics::Scalar numCycles1801_1900loop; 
+        statistics::Scalar numCycles1901_2000loop; 
+        statistics::Scalar numCycles1_500loop; 
+        statistics::Scalar numCycles501_1000loop; 
+        statistics::Scalar numCycles1001_1500loop; 
+        statistics::Scalar numCycles1501_2000loop; 
+
+        statistics::Formula ipc1_100loop;
+        statistics::Formula ipc101_200loop;
+        statistics::Formula ipc201_300loop;
+        statistics::Formula ipc301_400loop;
+        statistics::Formula ipc401_500loop;
+        statistics::Formula ipc501_600loop;
+        statistics::Formula ipc601_700loop;
+        statistics::Formula ipc701_800loop;
+        statistics::Formula ipc801_900loop;
+        statistics::Formula ipc901_1000loop;
+        statistics::Formula ipc1001_1100loop;
+        statistics::Formula ipc1101_1200loop;
+        statistics::Formula ipc1201_1300loop;
+        statistics::Formula ipc1301_1400loop;
+        statistics::Formula ipc1401_1500loop;
+        statistics::Formula ipc1501_1600loop;
+        statistics::Formula ipc1601_1700loop;
+        statistics::Formula ipc1701_1800loop;
+        statistics::Formula ipc1801_1900loop;
+        statistics::Formula ipc1901_2000loop;
+        statistics::Formula ipc1_500loop;
+        statistics::Formula ipc501_1000loop;
+        statistics::Formula ipc1001_1500loop;
+        statistics::Formula ipc1501_2000loop;
     } baseStats;
 
   private:
@@ -816,9 +891,26 @@ class BaseCPU : public ClockedObject
 
     };
 
+    struct LoopCPUStats: public statistics::Group
+    {
+        LoopCPUStats(statistics::Group *parent, int loop_id);
+
+        /* Number of cpu cycles simulated per loop. */
+        statistics::Scalar numCycles;
+        /* CPI/IPC per loop. */
+        statistics::Formula cpi;
+        statistics::Formula ipc;
+        /* Number of retired insts processed by commit per loop. */
+        statistics::Scalar commitRetiredInsts;
+        /* Number of retired branch insts processed by commit per loop. */
+        statistics::Scalar retiredBranchInsts;
+
+    };
+
     std::vector<std::unique_ptr<FetchCPUStats>> fetchStats;
     std::vector<std::unique_ptr<ExecuteCPUStats>> executeStats;
     std::vector<std::unique_ptr<CommitCPUStats>> commitStats;
+    std::vector<std::unique_ptr<LoopCPUStats>> loopStats;
 };
 
 } // namespace gem5

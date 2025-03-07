@@ -767,6 +767,13 @@ def addSEOptions(parser):
         help="Wait for remote GDB to connect.",
     )
 
+    parser.add_argument(
+        "--loop-pc",
+        action="store",
+        type=str,
+        help="the instruction number of a loop",
+        default=0x70001e68,
+    )
 
 def addFSOptions(parser):
     from common.FSConfig import os_types
@@ -897,4 +904,12 @@ def addFSOptions(parser):
         default=False,
         action="store_true",
         help="Wait for remote GDB to connect.",
+    )
+
+    parser.add_argument(
+        "--loop-pc",
+        action="store",
+        type=str,
+        help="the instruction number of a loop",
+        default=0x70001e68,
     )

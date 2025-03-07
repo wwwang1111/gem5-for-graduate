@@ -195,6 +195,7 @@ BaseCPU::BaseCPU(const Params &p, bool is_checker)
     fetchStats.reserve(numThreads);
     executeStats.reserve(numThreads);
     commitStats.reserve(numThreads);
+    loopStats.reserve(5002);
     for (int i = 0; i < numThreads; i++) {
         // create fetchStat object for thread i and set rate formulas
         FetchCPUStats* fetchStatptr = new FetchCPUStats(this, i);
@@ -214,6 +215,13 @@ BaseCPU::BaseCPU(const Params &p, bool is_checker)
         commitStatptr->ipc = commitStatptr->numInsts / baseStats.numCycles;
         commitStatptr->cpi = baseStats.numCycles / commitStatptr->numInsts;
         commitStats.emplace_back(commitStatptr);
+    }
+
+    for (int i = 0; i < 5002; i++) {
+        LoopCPUStats* loopStatptr = new LoopCPUStats(this, i);
+        loopStatptr->cpi = loopStatptr->numCycles / loopStatptr->commitRetiredInsts;
+        loopStatptr->ipc = loopStatptr->commitRetiredInsts / loopStatptr->numCycles;
+        loopStats.emplace_back(loopStatptr);
     }
 }
 
@@ -418,13 +426,282 @@ BaseCPUStats::BaseCPUStats(statistics::Group *parent)
       ADD_STAT(numWorkItemsStarted, statistics::units::Count::get(),
                "Number of work items this cpu started"),
       ADD_STAT(numWorkItemsCompleted, statistics::units::Count::get(),
-               "Number of work items this cpu completed")
+               "Number of work items this cpu completed"),
+               ADD_STAT(numInsts1_100loop, statistics::units::Count::get(),
+               "Number of insts retired in 1 - 100 loop"),
+      ADD_STAT(numInsts101_200loop, statistics::units::Count::get(),
+               "Number of insts retired in 101 - 200 loop"),
+      ADD_STAT(numInsts201_300loop, statistics::units::Count::get(),
+               "Number of insts retired in 201 - 300 loop"),
+      ADD_STAT(numInsts301_400loop, statistics::units::Count::get(),
+               "Number of insts retired in 301 - 400 loop"),
+      ADD_STAT(numInsts401_500loop, statistics::units::Count::get(),
+               "Number of insts retired in 401 - 500 loop"),
+      ADD_STAT(numInsts501_600loop, statistics::units::Count::get(),
+               "Number of insts retired in 501 - 600 loop"),
+      ADD_STAT(numInsts601_700loop, statistics::units::Count::get(),
+               "Number of insts retired in 601 - 700 loop"),
+      ADD_STAT(numInsts701_800loop, statistics::units::Count::get(),
+               "Number of insts retired in 701 - 800 loop"),
+      ADD_STAT(numInsts801_900loop, statistics::units::Count::get(),
+               "Number of insts retired in 801 - 900 loop"),
+      ADD_STAT(numInsts901_1000loop, statistics::units::Count::get(),
+               "Number of insts retired in 901 - 1000 loop"),
+      ADD_STAT(numInsts1001_1100loop, statistics::units::Count::get(),
+               "Number of insts retired in 1001 - 1100 loop"),
+      ADD_STAT(numInsts1101_1200loop, statistics::units::Count::get(),
+               "Number of insts retired in 1101 - 1200 loop"),
+      ADD_STAT(numInsts1201_1300loop, statistics::units::Count::get(),
+               "Number of insts retired in 1201 - 1300 loop"),
+      ADD_STAT(numInsts1301_1400loop, statistics::units::Count::get(),
+               "Number of insts retired in 1301 - 1400 loop"),
+      ADD_STAT(numInsts1401_1500loop, statistics::units::Count::get(),
+               "Number of insts retired in 1401 - 1500 loop"),
+      ADD_STAT(numInsts1501_1600loop, statistics::units::Count::get(),
+               "Number of insts retired in 1501 - 1600 loop"),
+      ADD_STAT(numInsts1601_1700loop, statistics::units::Count::get(),
+               "Number of insts retired in 1601 - 1700 loop"),
+      ADD_STAT(numInsts1701_1800loop, statistics::units::Count::get(),
+               "Number of insts retired in 1701 - 1800 loop"),
+      ADD_STAT(numInsts1801_1900loop, statistics::units::Count::get(),
+               "Number of insts retired in 1801 - 1900 loop"),
+      ADD_STAT(numInsts1901_2000loop, statistics::units::Count::get(),
+               "Number of insts retired in 1901 - 2000 loop"),
+      ADD_STAT(numInsts1_500loop, statistics::units::Count::get(),
+               "Number of insts retired in 1 - 500 loop"),
+      ADD_STAT(numInsts501_1000loop, statistics::units::Count::get(),
+               "Number of insts retired in 501 - 1000 loop"),
+      ADD_STAT(numInsts1001_1500loop, statistics::units::Count::get(),
+               "Number of insts retired in 1001 - 1500 loop"),
+      ADD_STAT(numInsts1501_2000loop, statistics::units::Count::get(),
+               "Number of insts retired in 1501 - 2000 loop"),
+
+      ADD_STAT(numCycles1_100loop, statistics::units::Cycle::get(),
+               "Number of cpu cycles simulated in 1 - 100 loop"),
+      ADD_STAT(numCycles101_200loop, statistics::units::Cycle::get(),
+               "Number of cpu cycles simulated in 101 - 200 loop"),
+      ADD_STAT(numCycles201_300loop, statistics::units::Cycle::get(),
+               "Number of cpu cycles simulated in 201 - 300 loop"),
+      ADD_STAT(numCycles301_400loop, statistics::units::Cycle::get(),
+               "Number of cpu cycles simulated in 301 - 400 loop"),
+      ADD_STAT(numCycles401_500loop, statistics::units::Cycle::get(),
+               "Number of cpu cycles simulated in 401 - 500 loop"),
+      ADD_STAT(numCycles501_600loop, statistics::units::Cycle::get(),
+               "Number of cpu cycles simulated in 501 - 600 loop"),
+      ADD_STAT(numCycles601_700loop, statistics::units::Cycle::get(),
+               "Number of cpu cycles simulated in 601 - 700 loop"),
+      ADD_STAT(numCycles701_800loop, statistics::units::Cycle::get(),
+               "Number of cpu cycles simulated in 701 - 800 loop"),
+      ADD_STAT(numCycles801_900loop, statistics::units::Cycle::get(),
+               "Number of cpu cycles simulated in 801 - 900 loop"),
+      ADD_STAT(numCycles901_1000loop, statistics::units::Cycle::get(),
+               "Number of cpu cycles simulated in 901 - 1000 loop"),
+      ADD_STAT(numCycles1001_1100loop, statistics::units::Cycle::get(),
+               "Number of cpu cycles simulated in 1001 - 1100 loop"),
+      ADD_STAT(numCycles1101_1200loop, statistics::units::Cycle::get(),
+               "Number of cpu cycles simulated in 1101 - 1200 loop"),
+      ADD_STAT(numCycles1201_1300loop, statistics::units::Cycle::get(),
+               "Number of cpu cycles simulated in 1201 - 1300 loop"),
+      ADD_STAT(numCycles1301_1400loop, statistics::units::Cycle::get(),
+               "Number of cpu cycles simulated in 1301 - 1400 loop"),
+      ADD_STAT(numCycles1401_1500loop, statistics::units::Cycle::get(),
+               "Number of cpu cycles simulated in 1401 - 1500 loop"),
+      ADD_STAT(numCycles1501_1600loop, statistics::units::Cycle::get(),
+               "Number of cpu cycles simulated in 1501 - 1600 loop"),
+      ADD_STAT(numCycles1601_1700loop, statistics::units::Cycle::get(),
+               "Number of cpu cycles simulated in 1601 - 1700 loop"),
+      ADD_STAT(numCycles1701_1800loop, statistics::units::Cycle::get(),
+               "Number of cpu cycles simulated in 1701 - 1800 loop"),
+      ADD_STAT(numCycles1801_1900loop, statistics::units::Cycle::get(),
+               "Number of cpu cycles simulated in 1801 - 1900 loop"),
+      ADD_STAT(numCycles1901_2000loop, statistics::units::Cycle::get(),
+               "Number of cpu cycles simulated in 1901 - 2000 loop"),
+      ADD_STAT(numCycles1_500loop, statistics::units::Cycle::get(),
+               "Number of cpu cycles simulated in 1 - 500 loop"),
+      ADD_STAT(numCycles501_1000loop, statistics::units::Cycle::get(),
+               "Number of cpu cycles simulated in 501 - 1000 loop"),
+      ADD_STAT(numCycles1001_1500loop, statistics::units::Cycle::get(),
+               "Number of cpu cycles simulated in 1001 - 1500 loop"),
+      ADD_STAT(numCycles1501_2000loop, statistics::units::Cycle::get(),
+               "Number of cpu cycles simulated in 1501 - 2000 loop"),
+
+      ADD_STAT(ipc1_100loop, statistics::units::Rate<
+                statistics::units::Count, statistics::units::Cycle>::get(),
+               "IPC: instructions per cycle (1 - 100 loop average)"),
+      ADD_STAT(ipc101_200loop, statistics::units::Rate<
+                statistics::units::Count, statistics::units::Cycle>::get(),
+               "IPC: instructions per cycle (101 - 200 loop average)"),
+      ADD_STAT(ipc201_300loop, statistics::units::Rate<
+                statistics::units::Count, statistics::units::Cycle>::get(),
+               "IPC: instructions per cycle (201 - 300 loop average)"),
+      ADD_STAT(ipc301_400loop, statistics::units::Rate<
+                statistics::units::Count, statistics::units::Cycle>::get(),
+               "IPC: instructions per cycle (301 - 400 loop average)"),
+      ADD_STAT(ipc401_500loop, statistics::units::Rate<
+                statistics::units::Count, statistics::units::Cycle>::get(),
+               "IPC: instructions per cycle (401 - 500 loop average)"),
+      ADD_STAT(ipc501_600loop, statistics::units::Rate<
+                statistics::units::Count, statistics::units::Cycle>::get(),
+               "IPC: instructions per cycle (501 - 600 loop average)"),
+      ADD_STAT(ipc601_700loop, statistics::units::Rate<
+                statistics::units::Count, statistics::units::Cycle>::get(),
+               "IPC: instructions per cycle (601 - 600 loop average)"),
+      ADD_STAT(ipc701_800loop, statistics::units::Rate<
+                statistics::units::Count, statistics::units::Cycle>::get(),
+               "IPC: instructions per cycle (701 - 800 loop average)"),
+      ADD_STAT(ipc801_900loop, statistics::units::Rate<
+                statistics::units::Count, statistics::units::Cycle>::get(),
+               "IPC: instructions per cycle (801 - 900 loop average)"),
+      ADD_STAT(ipc901_1000loop, statistics::units::Rate<
+                statistics::units::Count, statistics::units::Cycle>::get(),
+               "IPC: instructions per cycle (901 - 1000 loop average)"),
+      ADD_STAT(ipc1001_1100loop, statistics::units::Rate<
+                statistics::units::Count, statistics::units::Cycle>::get(),
+               "IPC: instructions per cycle (1001 - 1100 loop average)"),
+      ADD_STAT(ipc1101_1200loop, statistics::units::Rate<
+                statistics::units::Count, statistics::units::Cycle>::get(),
+               "IPC: instructions per cycle (1101 - 1200 loop average)"),
+      ADD_STAT(ipc1201_1300loop, statistics::units::Rate<
+                statistics::units::Count, statistics::units::Cycle>::get(),
+               "IPC: instructions per cycle (1201 - 1300 loop average)"),
+      ADD_STAT(ipc1301_1400loop, statistics::units::Rate<
+                statistics::units::Count, statistics::units::Cycle>::get(),
+               "IPC: instructions per cycle (1301 - 1400 loop average)"),
+      ADD_STAT(ipc1401_1500loop, statistics::units::Rate<
+                statistics::units::Count, statistics::units::Cycle>::get(),
+               "IPC: instructions per cycle (1401 - 1500 loop average)"),
+      ADD_STAT(ipc1501_1600loop, statistics::units::Rate<
+                statistics::units::Count, statistics::units::Cycle>::get(),
+               "IPC: instructions per cycle (1501 - 1600 loop average)"),
+      ADD_STAT(ipc1601_1700loop, statistics::units::Rate<
+                statistics::units::Count, statistics::units::Cycle>::get(),
+               "IPC: instructions per cycle (1601 - 1700 loop average)"),
+      ADD_STAT(ipc1701_1800loop, statistics::units::Rate<
+                statistics::units::Count, statistics::units::Cycle>::get(),
+               "IPC: instructions per cycle (1701 - 1800 loop average)"),
+      ADD_STAT(ipc1801_1900loop, statistics::units::Rate<
+                statistics::units::Count, statistics::units::Cycle>::get(),
+               "IPC: instructions per cycle (1801 - 1900 loop average)"),
+      ADD_STAT(ipc1901_2000loop, statistics::units::Rate<
+                statistics::units::Count, statistics::units::Cycle>::get(),
+               "IPC: instructions per cycle (1901 - 2000 loop average)"),
+      ADD_STAT(ipc1_500loop, statistics::units::Rate<
+                statistics::units::Count, statistics::units::Cycle>::get(),
+               "IPC: instructions per cycle (1 - 500 loop average)"),
+      ADD_STAT(ipc501_1000loop, statistics::units::Rate<
+                statistics::units::Count, statistics::units::Cycle>::get(),
+               "IPC: instructions per cycle (501 - 1000 loop average)"),
+      ADD_STAT(ipc1001_1500loop, statistics::units::Rate<
+                statistics::units::Count, statistics::units::Cycle>::get(),
+               "IPC: instructions per cycle (1001 - 1500 loop average)"),
+      ADD_STAT(ipc1501_2000loop, statistics::units::Rate<
+                statistics::units::Count, statistics::units::Cycle>::get(),
+               "IPC: instructions per cycle (1501 - 2000 loop average)")
 {
     cpi.precision(6);
     cpi = numCycles / numInsts;
 
     ipc.precision(6);
     ipc = numInsts / numCycles;
+
+    numInsts1_100loop.prereq(numInsts1_100loop);
+    numInsts101_200loop.prereq(numInsts101_200loop);
+    numInsts201_300loop.prereq(numInsts201_300loop);
+    numInsts301_400loop.prereq(numInsts301_400loop);
+    numInsts401_500loop.prereq(numInsts401_500loop);
+    numInsts501_600loop.prereq(numInsts501_600loop);
+    numInsts601_700loop.prereq(numInsts601_700loop);
+    numInsts701_800loop.prereq(numInsts701_800loop);
+    numInsts801_900loop.prereq(numInsts801_900loop);
+    numInsts901_1000loop.prereq(numInsts901_1000loop);
+    numInsts1001_1100loop.prereq(numInsts1001_1100loop);
+    numInsts1101_1200loop.prereq(numInsts1101_1200loop);
+    numInsts1201_1300loop.prereq(numInsts1201_1300loop);
+    numInsts1301_1400loop.prereq(numInsts1301_1400loop);
+    numInsts1401_1500loop.prereq(numInsts1401_1500loop);
+    numInsts1501_1600loop.prereq(numInsts1501_1600loop);
+    numInsts1601_1700loop.prereq(numInsts1601_1700loop);
+    numInsts1701_1800loop.prereq(numInsts1701_1800loop);
+    numInsts1801_1900loop.prereq(numInsts1801_1900loop);
+    numInsts1901_2000loop.prereq(numInsts1901_2000loop);
+    numInsts1_500loop.prereq(numInsts1_500loop);
+    numInsts501_1000loop.prereq(numInsts501_1000loop);
+    numInsts1001_1500loop.prereq(numInsts1001_1500loop);
+    numInsts1501_2000loop.prereq(numInsts1501_2000loop);
+
+    numCycles1_100loop.prereq(numCycles1_100loop);
+    numCycles101_200loop.prereq(numCycles101_200loop);
+    numCycles201_300loop.prereq(numCycles201_300loop);
+    numCycles301_400loop.prereq(numCycles301_400loop);
+    numCycles401_500loop.prereq(numCycles401_500loop);
+    numCycles501_600loop.prereq(numCycles501_600loop);
+    numCycles601_700loop.prereq(numCycles601_700loop);
+    numCycles701_800loop.prereq(numCycles701_800loop);
+    numCycles801_900loop.prereq(numCycles801_900loop);
+    numCycles901_1000loop.prereq(numCycles901_1000loop);
+    numCycles1001_1100loop.prereq(numCycles1001_1100loop);
+    numCycles1101_1200loop.prereq(numCycles1101_1200loop);
+    numCycles1201_1300loop.prereq(numCycles1201_1300loop);
+    numCycles1301_1400loop.prereq(numCycles1301_1400loop);
+    numCycles1401_1500loop.prereq(numCycles1401_1500loop);
+    numCycles1501_1600loop.prereq(numCycles1501_1600loop);
+    numCycles1601_1700loop.prereq(numCycles1601_1700loop);
+    numCycles1701_1800loop.prereq(numCycles1701_1800loop);
+    numCycles1801_1900loop.prereq(numCycles1801_1900loop);
+    numCycles1901_2000loop.prereq(numCycles1901_2000loop);
+    numCycles1_500loop.prereq(numCycles1_500loop);
+    numCycles501_1000loop.prereq(numCycles501_1000loop);
+    numCycles1001_1500loop.prereq(numCycles1001_1500loop);
+    numCycles1501_2000loop.prereq(numCycles1501_2000loop);
+
+    ipc1_100loop.precision(6);
+    ipc1_100loop = numInsts1_100loop / numCycles1_100loop;
+    ipc101_200loop.precision(6);
+    ipc101_200loop = numInsts101_200loop / numCycles101_200loop;
+    ipc201_300loop.precision(6);
+    ipc201_300loop = numInsts201_300loop / numCycles201_300loop;
+    ipc301_400loop.precision(6);
+    ipc301_400loop = numInsts301_400loop / numCycles301_400loop;
+    ipc401_500loop.precision(6);
+    ipc401_500loop = numInsts401_500loop / numCycles401_500loop;
+    ipc501_600loop.precision(6);
+    ipc501_600loop = numInsts501_600loop / numCycles501_600loop;
+    ipc601_700loop.precision(6);
+    ipc601_700loop = numInsts601_700loop / numCycles601_700loop;
+    ipc701_800loop.precision(6);
+    ipc701_800loop = numInsts701_800loop / numCycles701_800loop;
+    ipc801_900loop.precision(6);
+    ipc801_900loop = numInsts801_900loop / numCycles801_900loop;
+    ipc901_1000loop.precision(6);
+    ipc901_1000loop = numInsts901_1000loop / numCycles901_1000loop;
+    ipc1001_1100loop.precision(6);
+    ipc1001_1100loop = numInsts1001_1100loop / numCycles1001_1100loop;
+    ipc1101_1200loop.precision(6);
+    ipc1101_1200loop = numInsts1101_1200loop / numCycles1101_1200loop;
+    ipc1201_1300loop.precision(6);
+    ipc1201_1300loop = numInsts1201_1300loop / numCycles1201_1300loop;
+    ipc1301_1400loop.precision(6);
+    ipc1301_1400loop = numInsts1301_1400loop / numCycles1301_1400loop;
+    ipc1401_1500loop.precision(6);
+    ipc1401_1500loop = numInsts1401_1500loop / numCycles1401_1500loop;
+    ipc1501_1600loop.precision(6);
+    ipc1501_1600loop = numInsts1501_1600loop / numCycles1501_1600loop;
+    ipc1601_1700loop.precision(6);
+    ipc1601_1700loop = numInsts1601_1700loop / numCycles1601_1700loop;
+    ipc1701_1800loop.precision(6);
+    ipc1701_1800loop = numInsts1701_1800loop / numCycles1701_1800loop;
+    ipc1801_1900loop.precision(6);
+    ipc1801_1900loop = numInsts1801_1900loop / numCycles1801_1900loop;
+    ipc1901_2000loop.precision(6);
+    ipc1901_2000loop = numInsts1901_2000loop / numCycles1901_2000loop;
+    ipc1_500loop.precision(6);
+    ipc1_500loop = numInsts1_500loop / numCycles1_500loop;
+    ipc501_1000loop.precision(6);
+    ipc501_1000loop = numInsts501_1000loop / numCycles501_1000loop;
+    ipc1001_1500loop.precision(6);
+    ipc1001_1500loop = numInsts1001_1500loop / numCycles1001_1500loop;
+    ipc1501_2000loop.precision(6);
+    ipc1501_2000loop = numInsts1501_2000loop / numCycles1501_2000loop;
 }
 
 void
@@ -1070,6 +1347,36 @@ CommitCPUStats::updateComCtrlStats(const StaticInstPtr staticInst)
         }
         committedControl[gem5::StaticInstFlags::Flags::IsControl]++;
     }
+}
+
+BaseCPU::
+LoopCPUStats::LoopCPUStats(statistics::Group *parent, int loop_id)
+    : statistics::Group(parent, csprintf("loopStats%i", loop_id).c_str()),
+    ADD_STAT(commitRetiredInsts, statistics::units::Count::get(),
+             "Number of retired insts processed by commit per loop"),
+    ADD_STAT(numCycles, statistics::units::Cycle::get(),
+             "Number of cpu cycles simulated per loop"),
+    ADD_STAT(cpi, statistics::units::Rate<
+                statistics::units::Cycle, statistics::units::Count>::get(),
+             "CPI: cycles per instruction per loop"),
+    ADD_STAT(ipc, statistics::units::Rate<
+                statistics::units::Count, statistics::units::Cycle>::get(),
+             "IPC: instructions per cycle per loop"),
+    ADD_STAT(retiredBranchInsts, statistics::units::Count::get(),
+             "Number of retired branch insts processed by commit per loop")
+
+{
+    commitRetiredInsts
+        .prereq(commitRetiredInsts);
+
+    numCycles
+        .prereq(numCycles);
+
+    cpi.precision(6);
+    ipc.precision(6);
+
+    retiredBranchInsts
+        .prereq(retiredBranchInsts);
 }
 
 } // namespace gem5

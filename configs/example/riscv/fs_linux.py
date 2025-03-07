@@ -231,6 +231,15 @@ system.platform.attachOffChipIO(system.iobus)
 system.platform.attachPlic()
 system.platform.setNumCores(np)
 
+#loop pc
+if args.loop_pc:
+    if isinstance(args.loop_pc, str):
+        system.loopPC = int(args.loop_pc, base=16)
+    else:
+        system.loopPC = 0x70003304
+else:
+    system.loopPC = 0x70003304
+
 # ---------------------------- Default Setup --------------------------- #
 
 # Set the cache line size for the entire system

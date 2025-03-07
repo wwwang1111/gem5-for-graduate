@@ -978,6 +978,10 @@ Commit::commitInsts()
                 stats.committedInstType[tid][head_inst->opClass()]++;
                 ppCommit->notify(head_inst);
 
+                if (cpu->loopPC == head_inst->pcState().instAddr()) {
+                    cpu->loopIndex++;
+                }
+
                 // hardware transactional memory
 
                 // update nesting depth
@@ -1351,6 +1355,65 @@ Commit::updateComInstStats(const DynInstPtr &inst)
         cpu->commitStats[tid]->numInsts++;
         cpu->baseStats.numInsts++;
         cpu->curCommitInsts++;
+
+        if (cpu->loopIndex >= 1 && cpu->loopIndex <= 500) {
+            cpu->baseStats.numInsts1_500loop++;
+        } else if (cpu->loopIndex >= 501 && cpu->loopIndex <= 1000) {
+            cpu->baseStats.numInsts501_1000loop++;
+        } else if (cpu->loopIndex >= 1001 && cpu->loopIndex <= 1500) {
+            cpu->baseStats.numInsts1001_1500loop++;
+        } else if (cpu->loopIndex >= 1501 && cpu->loopIndex <= 2000) {
+            cpu->baseStats.numInsts1501_2000loop++;
+        }
+
+        if (cpu->loopIndex >= 1 && cpu->loopIndex <= 100) {
+            cpu->baseStats.numInsts1_100loop++;
+        } else if (cpu->loopIndex >= 101 && cpu->loopIndex <= 200) {
+            cpu->baseStats.numInsts101_200loop++;
+        } else if (cpu->loopIndex >= 201 && cpu->loopIndex <= 300) {
+            cpu->baseStats.numInsts201_300loop++;
+        } else if (cpu->loopIndex >= 301 && cpu->loopIndex <= 400) {
+            cpu->baseStats.numInsts301_400loop++;
+        } else if (cpu->loopIndex >= 401 && cpu->loopIndex <= 500) {
+            cpu->baseStats.numInsts401_500loop++;
+        } else if (cpu->loopIndex >= 501 && cpu->loopIndex <= 600) {
+            cpu->baseStats.numInsts501_600loop++;
+        } else if (cpu->loopIndex >= 601 && cpu->loopIndex <= 700) {
+            cpu->baseStats.numInsts601_700loop++;
+        } else if (cpu->loopIndex >= 701 && cpu->loopIndex <= 800) {
+            cpu->baseStats.numInsts701_800loop++;
+        } else if (cpu->loopIndex >= 801 && cpu->loopIndex <= 900) {
+            cpu->baseStats.numInsts801_900loop++;
+        } else if (cpu->loopIndex >= 901 && cpu->loopIndex <= 1000) {
+            cpu->baseStats.numInsts901_1000loop++;
+        } else if (cpu->loopIndex >= 1001 && cpu->loopIndex <= 1100) {
+            cpu->baseStats.numInsts1001_1100loop++;
+        } else if (cpu->loopIndex >= 1101 && cpu->loopIndex <= 1200) {
+            cpu->baseStats.numInsts1101_1200loop++;
+        } else if (cpu->loopIndex >= 1201 && cpu->loopIndex <= 1300) {
+            cpu->baseStats.numInsts1201_1300loop++;
+        } else if (cpu->loopIndex >= 1301 && cpu->loopIndex <= 1400) {
+            cpu->baseStats.numInsts1301_1400loop++;
+        } else if (cpu->loopIndex >= 1401 && cpu->loopIndex <= 1500) {
+            cpu->baseStats.numInsts1401_1500loop++;
+        } else if (cpu->loopIndex >= 1501 && cpu->loopIndex <= 1600) {
+            cpu->baseStats.numInsts1501_1600loop++;
+        } else if (cpu->loopIndex >= 1601 && cpu->loopIndex <= 1700) {
+            cpu->baseStats.numInsts1601_1700loop++;
+        } else if (cpu->loopIndex >= 1701 && cpu->loopIndex <= 1800) {
+            cpu->baseStats.numInsts1701_1800loop++;
+        } else if (cpu->loopIndex >= 1801 && cpu->loopIndex <= 1900) {
+            cpu->baseStats.numInsts1801_1900loop++;
+        } else if (cpu->loopIndex >= 1901 && cpu->loopIndex <= 2000) {
+            cpu->baseStats.numInsts1901_2000loop++;
+        }
+
+        cpu->loopStats[cpu->loopIndex]->commitRetiredInsts++;
+
+        if(inst->isControl()) {
+            cpu->loopStats[cpu->loopIndex]->retiredBranchInsts++;
+        }
+
     }
     cpu->commitStats[tid]->numOps++;
 

@@ -486,6 +486,12 @@ class CPU : public BaseCPU
 
     int lowIPCCount = 0;
 
+    /** Loop PC. */
+    Addr loopPC;
+
+    /** Current loop index. */
+    unsigned loopIndex;
+
   private:
     /** The activity recorder; used to tell if the CPU has any
      * activity remaining or if it can go to idle and deschedule

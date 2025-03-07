@@ -114,6 +114,7 @@ CPU::CPU(const BaseO3CPUParams &params)
       globalSeqNum(1),
       system(params.system),
       lastRunningCycle(curCycle()),
+      loopPC(params.system->loopPC()),
       cpuStats(this)
 {
     fatal_if(FullSystem && params.numThreads > 1,
@@ -317,6 +318,8 @@ CPU::CPU(const BaseO3CPUParams &params)
         fatal("O3CPU %s has no interrupt controller.\n"
               "Ensure createInterruptController() is called.\n", name());
     }
+
+    loopIndex = 0;
 }
 
 void
@@ -367,6 +370,59 @@ CPU::tick()
     assert(drainState() != DrainState::Drained);
 
     ++baseStats.numCycles;
+    loopStats[loopIndex]->numCycles++;
+
+    if (loopIndex >= 1 && loopIndex <= 500) {
+        baseStats.numCycles1_500loop++;
+    } else if (loopIndex >= 501 && loopIndex <= 1000) {
+        baseStats.numCycles501_1000loop++;
+    } else if (loopIndex >= 1001 && loopIndex <= 1500) {
+        baseStats.numCycles1001_1500loop++;
+    } else if (loopIndex >= 1501 && loopIndex <= 2000) {
+        baseStats.numCycles1501_2000loop++;
+    }
+
+    if (loopIndex >= 1 && loopIndex <= 100) {
+        baseStats.numCycles1_100loop++;
+    } else if (loopIndex >= 101 && loopIndex <= 200) {
+        baseStats.numCycles101_200loop++;
+    } else if (loopIndex >= 201 && loopIndex <= 300) {
+        baseStats.numCycles201_300loop++;
+    } else if (loopIndex >= 301 && loopIndex <= 400) {
+        baseStats.numCycles301_400loop++;
+    } else if (loopIndex >= 401 && loopIndex <= 500) {
+        baseStats.numCycles401_500loop++;
+    } else if (loopIndex >= 501 && loopIndex <= 600) {
+        baseStats.numCycles501_600loop++;
+    } else if (loopIndex >= 601 && loopIndex <= 700) {
+        baseStats.numCycles601_700loop++;
+    } else if (loopIndex >= 701 && loopIndex <= 800) {
+        baseStats.numCycles701_800loop++;
+    } else if (loopIndex >= 801 && loopIndex <= 900) {
+        baseStats.numCycles801_900loop++;
+    } else if (loopIndex >= 901 && loopIndex <= 1000) {
+        baseStats.numCycles901_1000loop++;
+    } else if (loopIndex >= 1001 && loopIndex <= 1100) {
+        baseStats.numCycles1001_1100loop++;
+    } else if (loopIndex >= 1101 && loopIndex <= 1200) {
+        baseStats.numCycles1101_1200loop++;
+    } else if (loopIndex >= 1201 && loopIndex <= 1300) {
+        baseStats.numCycles1201_1300loop++;
+    } else if (loopIndex >= 1301 && loopIndex <= 1400) {
+        baseStats.numCycles1301_1400loop++;
+    } else if (loopIndex >= 1401 && loopIndex <= 1500) {
+        baseStats.numCycles1401_1500loop++;
+    } else if (loopIndex >= 1501 && loopIndex <= 1600) {
+        baseStats.numCycles1501_1600loop++;
+    } else if (loopIndex >= 1601 && loopIndex <= 1700) {
+        baseStats.numCycles1601_1700loop++;
+    } else if (loopIndex >= 1701 && loopIndex <= 1800) {
+        baseStats.numCycles1701_1800loop++;
+    } else if (loopIndex >= 1801 && loopIndex <= 1900) {
+        baseStats.numCycles1801_1900loop++;
+    } else if (loopIndex >= 1901 && loopIndex <= 2000) {
+        baseStats.numCycles1901_2000loop++;
+    }
     updateCycleCounters(BaseCPU::CPU_STATE_ON);
 
 //    activity = false;
@@ -1355,6 +1411,19 @@ CPU::wakeCPU()
         --cycles;
         cpuStats.idleCycles += cycles;
         baseStats.numCycles += cycles;
+        
+        loopStats[loopIndex]->numCycles += cycles;
+        if (loopIndex >= 1 && loopIndex <= 100) {
+            baseStats.numCycles1_100loop += cycles;
+        } else if (loopIndex >= 101 && loopIndex <= 200) {
+            baseStats.numCycles101_200loop += cycles;
+        } else if (loopIndex >= 201 && loopIndex <= 300) {
+            baseStats.numCycles201_300loop += cycles;
+        } else if (loopIndex >= 301 && loopIndex <= 400) {
+            baseStats.numCycles301_400loop += cycles;
+        } else if (loopIndex >= 401 && loopIndex <= 500) {
+            baseStats.numCycles401_500loop += cycles;
+        }
     }
 
     schedule(tickEvent, clockEdge());

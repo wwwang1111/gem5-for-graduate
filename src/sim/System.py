@@ -154,3 +154,5 @@ class System(SimObject):
         "Base of the 64KiB PA range used for "
         "memory-mapped m5ops. Set to 0 to disable.",
     )
+
+    loopPC = Param.Addr(0x70003330, "Loop PC")
